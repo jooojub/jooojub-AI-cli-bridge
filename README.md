@@ -97,9 +97,9 @@ docker run -d \
   -p 8000:8000 \
   --env-file .env \
   --add-host host.docker.internal:host-gateway \
-  -v "$HOME/.claude.json:/root/.claude.json:ro" \
+  -v "$HOME/.claude.json:/mnt/claude-config/claude.json:ro" \
   -v "$HOME/.claude:/root/.claude:ro" \
-  -v "$HOME/.gemini:/root/.gemini:ro" \
+  -v "$HOME/.gemini:/mnt/gemini-auth:ro" \
   ai-cli-bridge
 ```
 
@@ -345,12 +345,12 @@ print(resp.json()["response"])
 
 ## Auth Config Volume Mounts
 
-| CLI | Host path | Container path |
-|---|---|---|
-| claude | `~/.claude.json` | `/root/.claude.json` |
-| claude | `~/.claude/` | `/root/.claude/` |
-| gemini | `~/.gemini/` | `/root/.gemini/` |
-| gcloud ADC | `~/.config/gcloud` | `/root/.config/gcloud` |
+| CLI | Host path | Mount target | Note |
+|---|---|---|---|
+| claude | `~/.claude.json` | `/mnt/claude-config/claude.json:ro` | entrypoint이 `/root/.claude.json`으로 복사 |
+| claude | `~/.claude/` | `/root/.claude:ro` | 세션·히스토리 |
+| gemini | `~/.gemini/` | `/mnt/gemini-auth:ro` | entrypoint이 `/root/.gemini`(writable)로 복사 |
+| gcloud ADC | `~/.config/gcloud` | `/root/.config/gcloud:ro` | OAuth 대신 ADC 사용 시 |
 
 Mounted as `:ro` (read-only). The container never writes back to your host credentials.
 

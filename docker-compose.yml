@@ -7,14 +7,14 @@ services:
       - .env
     volumes:
       # ── Claude auth ──────────────────────────────────────────────────────────
-      # .claude.json  : main auth/config file (required)
-      # .claude/      : sessions, history, backups
-      - ${HOME}/.claude.json:/root/.claude.json:ro
+      # Mounted read-only. entrypoint.sh copies .claude.json to /root/.claude.json
+      - ${HOME}/.claude.json:/mnt/claude-config/claude.json:ro
       - ${HOME}/.claude:/root/.claude:ro
 
       # ── Gemini auth ──────────────────────────────────────────────────────────
-      # Gemini CLI stores credentials in ~/.gemini/ (settings.json + oauth token)
-      - ${HOME}/.gemini:/root/.gemini:ro
+      # Mounted read-only at /mnt/gemini-auth. entrypoint.sh copies to
+      # /root/.gemini (writable) so the CLI can write projects.json etc.
+      - ${HOME}/.gemini:/mnt/gemini-auth:ro
       # Uncomment if using gcloud ADC instead of OAuth:
       # - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
 
