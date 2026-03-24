@@ -1,0 +1,38 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+pip-cache/
+
+# Docker
+*.tar
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Auth configs (never commit these)
+.claude/
+.config/gemini/
+.config/gcloud/
+.ollama/
