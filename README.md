@@ -97,6 +97,7 @@ docker run -d \
   -p 8000:8000 \
   --env-file .env \
   --add-host host.docker.internal:host-gateway \
+  -v "$HOME/.claude.json:/root/.claude.json:ro" \
   -v "$HOME/.claude:/root/.claude:ro" \
   -v "$HOME/.config/gemini:/root/.config/gemini:ro" \
   ai-cli-bridge

@@ -7,7 +7,9 @@ services:
       - .env
     volumes:
       # ── Claude auth ──────────────────────────────────────────────────────────
-      # Mount the host's Claude config so the CLI is already authenticated.
+      # .claude.json  : main auth/config file (required)
+      # .claude/      : sessions, history, backups
+      - ${HOME}/.claude.json:/root/.claude.json:ro
       - ${HOME}/.claude:/root/.claude:ro
 
       # ── Gemini auth ──────────────────────────────────────────────────────────

@@ -33,11 +33,22 @@ _PROMPT_PATTERNS: list[str] = [
     r"Press Enter to continue",
 ]
 
-_ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+_ANSI_ESCAPE = re.compile(
+    r"\x1B(?:"
+    r"[@-Z\\-_]"                             # Fe sequences (ESC X)
+    r"|\[[0-?]*[ -/]*[@-~]"                  # CSI sequences (ESC [ ... )
+    r"|\][^\x07\x1B]*(?:\x07|\x1B\\)"        # OSC sequences (ESC ] ... BEL/ST)
+    r"|[PX^_][^\x1B]*\x1B\\"                 # DCS / SOS / PM / APC (ESC P/X/^/_ ... ST)
+    r")"
+)
+# Remaining non-printable control characters (except \t \n \r)
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
 
 
 def _strip_ansi(text: str) -> str:
-    return _ANSI_ESCAPE.sub("", text)
+    text = _ANSI_ESCAPE.sub("", text)
+    text = _CONTROL_CHARS.sub("", text)
+    return text
 
 
 def run_cli(
