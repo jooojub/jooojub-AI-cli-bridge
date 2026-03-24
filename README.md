@@ -189,29 +189,140 @@ Use `"reject"` (the default) for untrusted or production workloads where you do 
 
 ## Usage Examples
 
-### curl
+### 0. 공통 변수 설정
 
 ```bash
-TOKEN="your-api-token-here"
+TOKEN="your-api-token-here"   # .env의 API_TOKEN 값
+BASE="http://localhost:8000"
+```
 
-# Claude
-curl -s -X POST http://localhost:8000/v1/claude/chat \
+---
+
+### 1. 서버 상태 확인
+
+```bash
+curl -s $BASE/health
+# {"status":"ok"}
+```
+
+---
+
+### 2. 인증 토큰 테스트
+
+```bash
+# 올바른 토큰
+curl -s -X POST $BASE/v1/claude/chat \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "What is 2 + 2?", "interactive_mode": "reject"}' | jq
+  -d '{"prompt": "hi"}'
 
-# Gemini
-curl -s -X POST http://localhost:8000/v1/gemini/chat \
+# 잘못된 토큰 → 401
+curl -s -X POST $BASE/v1/claude/chat \
+  -H "Authorization: Bearer wrong-token" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "hi"}'
+```
+
+---
+
+### 3. Claude
+
+```bash
+# 기본 질문 (interactive_mode 기본값: reject)
+curl -s -X POST $BASE/v1/claude/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "What is 2 + 2?"}' | jq
+
+# accept 모드: 도구 사용 허용 확인 프롬프트에 자동 yes
+curl -s -X POST $BASE/v1/claude/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "List files in /tmp",
+    "interactive_mode": "accept"
+  }' | jq
+
+# reject 모드: 확인 프롬프트에 자동 no → 실패 응답 확인
+curl -s -X POST $BASE/v1/claude/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "List files in /tmp",
+    "interactive_mode": "reject"
+  }' | jq '.success, .exit_code'
+```
+
+---
+
+### 4. Gemini
+
+```bash
+curl -s -X POST $BASE/v1/gemini/chat \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Write a haiku about Docker."}' | jq
 
-# Ollama (specify model)
-curl -s -X POST http://localhost:8000/v1/ollama/chat \
+# 응답 텍스트만 추출
+curl -s -X POST $BASE/v1/gemini/chat \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"prompt": "Summarise TCP/IP in 3 bullet points.", "model": "gemma3"}' | jq
+  -d '{"prompt": "Explain REST API in one sentence."}' | jq -r '.response'
 ```
+
+---
+
+### 5. Ollama
+
+```bash
+# 모델 지정
+curl -s -X POST $BASE/v1/ollama/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Summarise TCP/IP in 3 bullet points.",
+    "model": "gemma3"
+  }' | jq
+
+# 모델 생략 → OLLAMA_DEFAULT_MODEL 사용
+curl -s -X POST $BASE/v1/ollama/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "What is the capital of France?"}' | jq
+```
+
+---
+
+### 6. 타임아웃 테스트
+
+```bash
+# timeout을 5초로 짧게 설정 → 긴 응답은 실패하는지 확인
+curl -s -X POST $BASE/v1/claude/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Write a 10000 word essay.", "timeout": 5}' | jq '.success, .exit_code'
+```
+
+---
+
+### 7. 멀티라인 프롬프트
+
+```bash
+PROMPT=$(cat <<'EOF'
+다음 Python 코드를 리뷰해줘:
+
+def add(a, b):
+    return a + b
+EOF
+)
+
+curl -s -X POST $BASE/v1/claude/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  --data-binary "$(jq -n --arg p "$PROMPT" '{prompt: $p}')" | jq -r '.response'
+```
+
+---
 
 ### Python
 
