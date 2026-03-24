@@ -1,6 +1,17 @@
 #!/bin/bash
 set -e
 
+# ── D-Bus machine-id ──────────────────────────────────────────────────────────
+# libsecret/keychain requires a machine-id to initialise D-Bus.
+# Docker containers don't have one by default, so generate a stable one.
+if [ ! -s /etc/machine-id ]; then
+    cat /proc/sys/kernel/random/uuid | tr -d '-' > /etc/machine-id
+fi
+if [ ! -f /var/lib/dbus/machine-id ]; then
+    mkdir -p /var/lib/dbus
+    cp /etc/machine-id /var/lib/dbus/machine-id
+fi
+
 # ── Gemini auth ────────────────────────────────────────────────────────────────
 # The Gemini CLI writes runtime files (projects.json, checkpoints, etc.) to
 # ~/.gemini, so the directory must be writable.  We mount the host credentials
