@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         bash \
         zstd \
+        libsecret-1-0 \
         && rm -rf /var/lib/apt/lists/*
 
 # ── Node.js 20 LTS (for claude and gemini CLIs) ────────────────────────────────
