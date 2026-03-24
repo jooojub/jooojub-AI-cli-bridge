@@ -13,9 +13,9 @@ services:
       - ${HOME}/.claude:/root/.claude:ro
 
       # ── Gemini auth ──────────────────────────────────────────────────────────
-      # The Gemini CLI stores credentials under ~/.config/gemini (or gcloud).
-      - ${HOME}/.config/gemini:/root/.config/gemini:ro
-      # Uncomment if using gcloud ADC:
+      # Gemini CLI stores credentials in ~/.gemini/ (settings.json + oauth token)
+      - ${HOME}/.gemini:/root/.gemini:ro
+      # Uncomment if using gcloud ADC instead of OAuth:
       # - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
 
     # extra_hosts lets the container reach host services as "host.docker.internal"

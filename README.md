@@ -99,7 +99,7 @@ docker run -d \
   --add-host host.docker.internal:host-gateway \
   -v "$HOME/.claude.json:/root/.claude.json:ro" \
   -v "$HOME/.claude:/root/.claude:ro" \
-  -v "$HOME/.config/gemini:/root/.config/gemini:ro" \
+  -v "$HOME/.gemini:/root/.gemini:ro" \
   ai-cli-bridge
 ```
 
@@ -347,8 +347,9 @@ print(resp.json()["response"])
 
 | CLI | Host path | Container path |
 |---|---|---|
-| claude | `~/.claude` | `/root/.claude` |
-| gemini | `~/.config/gemini` | `/root/.config/gemini` |
+| claude | `~/.claude.json` | `/root/.claude.json` |
+| claude | `~/.claude/` | `/root/.claude/` |
+| gemini | `~/.gemini/` | `/root/.gemini/` |
 | gcloud ADC | `~/.config/gcloud` | `/root/.config/gcloud` |
 
 Mounted as `:ro` (read-only). The container never writes back to your host credentials.
