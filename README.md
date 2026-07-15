@@ -76,8 +76,8 @@ A few things this diagram makes explicit:
 │   └── routes/
 │       ├── claude.py          # POST /v1/claude/chat  -> `claude -p "<prompt>"`
 │       ├── gemini.py          # POST /v1/gemini/chat  -> `agy -p "<prompt>"`
-│       └── ollama.py          # POST /v1/ollama/chat  -> `ollama run <model>`
-│                              # (prompt piped via stdin, no shell involved)
+│       └── ollama.py          # POST /v1/ollama/chat  -> `ollama run <model> <prompt>`
+│                              # (prompt as its own argv element, no shell)
 ├── test/                     # Standalone test scripts — one implementation
 │   ├── bash/                  # per language, one file per endpoint
 │   ├── node/
@@ -509,7 +509,7 @@ print(resp.json()["response"])
 
 ## Known Issues / Things Still Worth Fixing
 
-- **Manual shell-quoting in `claude.py` / `gemini.py`**: the prompt is escaped with a single `.replace('"', '\\"')` before being handed to `pexpect.spawn()`, which parses the command string with `shlex` (no real shell is invoked, so this is *not* a command-injection risk — unlike the old `ollama.py` bug fixed below). But prompts containing backslashes, unbalanced quotes, or other `shlex`-significant characters can still produce a malformed argv and break the request. The more robust fix, already applied to `ollama.py`, is to spawn the executable with an explicit `args=[...]` list and pass the prompt via stdin instead of interpolating it into the command string.
+- **Manual shell-quoting in `claude.py` / `gemini.py`**: the prompt is escaped with a single `.replace('"', '\\"')` before being handed to `pexpect.spawn()`, which parses the command string with `shlex` (no real shell is invoked, so this is *not* a command-injection risk — unlike the old `ollama.py` bug fixed early on). But prompts containing backslashes, unbalanced quotes, or other `shlex`-significant characters can still produce a malformed argv and break the request. The more robust fix, already applied to `ollama.py`, is to spawn the executable with an explicit `args=[...]` list instead of interpolating the prompt into the command string.
 - **Non-constant-time token comparison** in `app/auth.py` (`credentials.credentials != expected`): fine for a personal/internal server, but a hardened deployment should use `secrets.compare_digest()` to avoid a timing side-channel on the token check.
 - **`ANTIGRAVITY_API_KEY`** (documented in `.env.example` as the agy equivalent of the old `GEMINI_API_KEY`) is based on third-party documentation, not confirmed against Google's official Antigravity CLI docs — verify before relying on API-key auth in place of the `~/.gemini` OAuth mount.
 - **No TLS or rate limiting built in.** This server is designed to sit behind Docker on a trusted host; if you expose it beyond `localhost`, put a reverse proxy (nginx/Caddy) in front with TLS termination and request throttling.

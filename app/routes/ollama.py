@@ -37,15 +37,16 @@ def chat(req: ChatRequest, _token: str = Depends(verify_token)) -> ChatResponse:
     # to CLI_TIMEOUT rather than passed as os.getenv's default.
     timeout = req.timeout if req.timeout is not None else int(os.getenv("CLI_TIMEOUT", 120))
 
-    # Run `ollama run MODEL` directly (no shell) and feed the prompt via
-    # stdin, equivalent to `echo "prompt" | ollama run MODEL` but without
-    # ever passing user input through a shell — avoids command injection.
+    # Run `ollama run MODEL PROMPT` directly (no shell, prompt as its own
+    # argv element -- avoids command injection same as before, but also
+    # avoids feeding the prompt via stdin: `child.sendline()` writes any
+    # newlines embedded in the prompt as-is, which a line-based stdin reader
+    # would see as multiple separate turns instead of one multi-line message).
     output, code = run_cli(
         "ollama",
         req.interactive_mode,
         timeout=timeout,
-        args=["run", model],
-        stdin_data=req.prompt,
+        args=["run", model, req.prompt],
     )
 
     return ChatResponse(

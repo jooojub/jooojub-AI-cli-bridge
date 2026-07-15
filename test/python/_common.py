@@ -48,13 +48,18 @@ def post_chat(endpoint: str, body: dict, token: str | None = None) -> tuple[int,
             "Content-Type": "application/json",
         },
     )
-    request_timeout = body.get("timeout", 30) + 10
+    # Give the HTTP client more headroom than the CLI timeout the server will
+    # actually use, so a request that omits "timeout" (server falls back to
+    # CLI_TIMEOUT, e.g. 120s) doesn't get aborted locally first.
+    request_timeout = body.get("timeout", 120) + 10
     try:
         with urllib.request.urlopen(req, timeout=request_timeout) as resp:
             return resp.status, json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         payload = exc.read().decode("utf-8") or "{}"
         return exc.code, json.loads(payload)
+    except TimeoutError as exc:
+        return 0, {"success": False, "error": f"client-side timeout after {request_timeout}s: {exc}"}
 
 
 def get_json(endpoint: str) -> tuple[int, dict]:
@@ -66,6 +71,8 @@ def get_json(endpoint: str) -> tuple[int, dict]:
     except urllib.error.HTTPError as exc:
         payload = exc.read().decode("utf-8") or "{}"
         return exc.code, json.loads(payload)
+    except TimeoutError as exc:
+        return 0, {"status": f"client-side timeout: {exc}"}
 
 
 def print_result(status: int, payload: dict) -> None:

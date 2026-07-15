@@ -91,6 +91,7 @@ def run_cli(
         timeout_idx = eof_idx + 1
 
         output_parts: list[str] = []
+        timed_out = False
 
         while True:
             try:
@@ -101,6 +102,7 @@ def run_cli(
                     break
 
                 if idx == timeout_idx:
+                    timed_out = True
                     child.close(force=True)
                     break
 
@@ -116,20 +118,31 @@ def run_cli(
                 output_parts.append(child.before or "")
                 break
             except pexpect.TIMEOUT:
+                timed_out = True
                 output_parts.append(child.before or "")
                 child.close(force=True)
                 break
 
-        child.close()
-        exit_code = child.exitstatus if child.exitstatus is not None else 0
+        if not child.closed:
+            child.close()
+
+        # A force-killed (timed out) process has no normal exit status --
+        # child.exitstatus is None, not 0 -- so falling back to 0 there would
+        # misreport a timeout as a successful, empty-output response.
+        if timed_out:
+            exit_code = 124  # conventional "command timed out" exit code
+        else:
+            exit_code = child.exitstatus if child.exitstatus is not None else 0
 
     except pexpect.exceptions.ExceptionPexpect as exc:
         return f"pexpect error: {exc}", 1
     except Exception as exc:  # noqa: BLE001
         return f"Unexpected error: {exc}", 1
 
-    raw = "".join(output_parts)
-    return _strip_ansi(raw).strip(), exit_code
+    text = _strip_ansi("".join(output_parts)).strip()
+    if timed_out and not text:
+        text = f"Request timed out after {timeout}s waiting for the CLI to respond."
+    return text, exit_code
 
 
 def assert_cli_available(name: str) -> None:
