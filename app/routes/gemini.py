@@ -11,7 +11,7 @@ router = APIRouter(tags=["gemini"])
 class ChatRequest(BaseModel):
     prompt: str
     interactive_mode: InteractiveMode = InteractiveMode.REJECT
-    timeout: int = 120
+    timeout: int | None = None  # None -> falls back to CLI_TIMEOUT env var, else 120
 
 
 class ChatResponse(BaseModel):
@@ -24,15 +24,18 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, _token: str = Depends(verify_token)) -> ChatResponse:
     try:
-        assert_cli_available("gemini")
+        assert_cli_available("agy")
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
-    timeout = int(os.getenv("CLI_TIMEOUT", req.timeout))
+    # See claude.py for why req.timeout must be checked before falling back
+    # to CLI_TIMEOUT rather than passed as os.getenv's default.
+    timeout = req.timeout if req.timeout is not None else int(os.getenv("CLI_TIMEOUT", 120))
 
-    # gemini CLI: non-interactive print mode via -p flag
+    # Antigravity CLI (agy), the Gemini CLI successor: non-interactive
+    # print mode via -p flag, same as the old `gemini -p` invocation.
     escaped = req.prompt.replace('"', '\\"')
-    cmd = f'gemini -p "{escaped}"'
+    cmd = f'agy -p "{escaped}"'
 
     output, code = run_cli(cmd, req.interactive_mode, timeout=timeout)
 

@@ -11,7 +11,7 @@ router = APIRouter(tags=["claude"])
 class ChatRequest(BaseModel):
     prompt: str
     interactive_mode: InteractiveMode = InteractiveMode.REJECT
-    timeout: int = 120
+    timeout: int | None = None  # None -> falls back to CLI_TIMEOUT env var, else 120
 
 
 class ChatResponse(BaseModel):
@@ -28,12 +28,23 @@ def chat(req: ChatRequest, _token: str = Depends(verify_token)) -> ChatResponse:
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
-    timeout = int(os.getenv("CLI_TIMEOUT", req.timeout))
+    # req.timeout, when the client sets it, always wins over CLI_TIMEOUT --
+    # os.getenv(key, default) only falls back to `default` when the env var
+    # is unset, so `os.getenv("CLI_TIMEOUT", req.timeout)` would silently
+    # ignore any per-request timeout whenever CLI_TIMEOUT is configured
+    # (i.e. always, per .env.example) and use the server-wide value instead.
+    timeout = req.timeout if req.timeout is not None else int(os.getenv("CLI_TIMEOUT", 120))
 
-    # -p  : print mode (non-interactive output, still honours tool-use prompts)
-    # --   : separates flags from the prompt safely
+    # -p : print mode (non-interactive output). In print mode, claude does
+    # NOT emit an interactive [y/N] prompt for permission-gated tool calls —
+    # it just denies them and replies in text, regardless of what we'd type
+    # back on stdin. So "accept" is implemented by passing
+    # --dangerously-skip-permissions rather than relying on the pexpect y/n
+    # auto-answer loop in cli_runner.py (which still handles any other
+    # genuine interactive prompts the CLI might emit).
     escaped = req.prompt.replace('"', '\\"')
-    cmd = f'claude -p "{escaped}"'
+    skip_perms = "--dangerously-skip-permissions " if req.interactive_mode == InteractiveMode.ACCEPT else ""
+    cmd = f'claude -p {skip_perms}"{escaped}"'
 
     output, code = run_cli(cmd, req.interactive_mode, timeout=timeout)
 

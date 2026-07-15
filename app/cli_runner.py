@@ -35,10 +35,11 @@ _PROMPT_PATTERNS: list[str] = [
 
 _ANSI_ESCAPE = re.compile(
     r"\x1B(?:"
-    r"[@-Z\\-_]"                             # Fe sequences (ESC X)
-    r"|\[[0-?]*[ -/]*[@-~]"                  # CSI sequences (ESC [ ... )
+    r"\[[0-?]*[ -/]*[@-~]"                   # CSI sequences (ESC [ ... )
     r"|\][^\x07\x1B]*(?:\x07|\x1B\\)"        # OSC sequences (ESC ] ... BEL/ST)
     r"|[PX^_][^\x1B]*\x1B\\"                 # DCS / SOS / PM / APC (ESC P/X/^/_ ... ST)
+    r"|[@-Z\\-_]"                             # Fe sequences (ESC X), tried after the specific forms above
+    r"|[ -/]*[0-~]"                          # nF sequences, e.g. charset select (ESC ( B), ESC 7 / ESC 8
     r")"
 )
 # Remaining non-printable control characters (except \t \n \r)
@@ -55,20 +56,35 @@ def run_cli(
     cmd: str,
     mode: InteractiveMode,
     timeout: int = 120,
+    args: list[str] | None = None,
+    stdin_data: str | None = None,
 ) -> tuple[str, int]:
     """
     Spawn *cmd* in a pseudo-TTY and respond to every interactive prompt
     according to *mode*.
+
+    If *args* is given, *cmd* is treated as an executable and *args* as its
+    argv, run directly with no shell involved (safe for untrusted input).
+    Otherwise *cmd* is parsed with shlex, still without invoking a shell.
+
+    If *stdin_data* is given, it is written as a single line followed by
+    EOF right after spawning, equivalent to piping it in like
+    `echo "stdin_data" | cmd`.
 
     Returns (output_text, exit_code).
     """
     try:
         child = pexpect.spawn(
             cmd,
+            args=args or [],
             timeout=timeout,
             encoding="utf-8",
             codec_errors="replace",
         )
+
+        if stdin_data is not None:
+            child.sendline(stdin_data)
+            child.sendeof()
 
         patterns = _PROMPT_PATTERNS + [pexpect.EOF, pexpect.TIMEOUT]
         eof_idx = len(_PROMPT_PATTERNS)

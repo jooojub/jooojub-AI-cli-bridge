@@ -1,0 +1,31 @@
+# Copy this file to docker-compose.override.yml (gitignored) to mount extra
+# host paths without touching the tracked docker-compose.yml. Docker Compose
+# auto-loads docker-compose.override.yml alongside docker-compose.yml and
+# deep-merges it — no extra flags, no -f needed, just `docker compose up`.
+#
+# Use this for anything host/machine-specific that isn't already covered by
+# docker-compose.yml's ~/.claude, ~/.agents, ~/.gemini, ~/.claude.json mounts,
+# e.g.:
+#   - a CLI plugin/skill that reads from a config dir outside ~/.claude
+#   - gcloud ADC (~/.config/gcloud) if you use that instead of OAuth
+#   - a project directory you want claude/agy able to read inside the
+#     container (only if you also pass --add-dir in the request's prompt
+#     handling, or otherwise point the CLI at it)
+#
+# `${HOME}` here resolves to the *host's* $HOME at `docker compose up` time,
+# same as in docker-compose.yml — see the System Architecture section in
+# README.md for why the container's HOME is set to match it.
+
+services:
+  ai-bridge:
+    volumes:
+      # Example: gcloud ADC, mounted at the identical path (not /root) for
+      # the same reason ~/.claude is — see README's System Architecture.
+      # - ${HOME}/.config/gcloud:${HOME}/.config/gcloud:ro
+
+      # Example: an extra plugin/skill config directory living outside
+      # ~/.claude and ~/.agents.
+      # - ${HOME}/.some-other-tool:${HOME}/.some-other-tool:ro
+
+      # Example: a project directory, read-only.
+      # - ${HOME}/projects/my-project:${HOME}/projects/my-project:ro

@@ -2,6 +2,7 @@
 .env
 .env.local
 *.env
+.omc/*
 
 # Python
 __pycache__/
@@ -16,6 +17,7 @@ pip-cache/
 
 # Docker
 *.tar
+docker-compose.override.yml
 
 # Logs
 logs/

@@ -14,7 +14,7 @@ class ChatRequest(BaseModel):
     prompt: str
     model: str | None = None          # falls back to OLLAMA_DEFAULT_MODEL env var
     interactive_mode: InteractiveMode = InteractiveMode.REJECT
-    timeout: int = 120
+    timeout: int | None = None  # None -> falls back to CLI_TIMEOUT env var, else 120
 
 
 class ChatResponse(BaseModel):
@@ -33,15 +33,20 @@ def chat(req: ChatRequest, _token: str = Depends(verify_token)) -> ChatResponse:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
 
     model = req.model or os.getenv("OLLAMA_DEFAULT_MODEL", _DEFAULT_MODEL)
-    timeout = int(os.getenv("CLI_TIMEOUT", req.timeout))
+    # See claude.py for why req.timeout must be checked before falling back
+    # to CLI_TIMEOUT rather than passed as os.getenv's default.
+    timeout = req.timeout if req.timeout is not None else int(os.getenv("CLI_TIMEOUT", 120))
 
-    # Pass the prompt via stdin: echo "prompt" | ollama run MODEL
-    # This avoids shell-quoting edge-cases with complex prompts.
-    escaped_prompt = req.prompt.replace("'", "'\\''")
-    escaped_model = model.replace('"', '\\"')
-    cmd = f"bash -c 'echo \"{escaped_prompt}\" | ollama run \"{escaped_model}\"'"
-
-    output, code = run_cli(cmd, req.interactive_mode, timeout=timeout)
+    # Run `ollama run MODEL` directly (no shell) and feed the prompt via
+    # stdin, equivalent to `echo "prompt" | ollama run MODEL` but without
+    # ever passing user input through a shell — avoids command injection.
+    output, code = run_cli(
+        "ollama",
+        req.interactive_mode,
+        timeout=timeout,
+        args=["run", model],
+        stdin_data=req.prompt,
+    )
 
     return ChatResponse(
         model=model,

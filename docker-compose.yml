@@ -1,22 +1,55 @@
 services:
   ai-bridge:
-    build: .
+    build:
+      context: .
+      args:
+        # Must match the host user so the container can read host-owned
+        # mounted files (some are 0600) and so claude's
+        # --dangerously-skip-permissions is allowed to run (it refuses root).
+        # Defaults to 1000, the near-universal first-user UID/GID on Linux —
+        # override in .env if `id -u`/`id -g` on the host differ.
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      # Claude Code's plugin/marketplace metadata (~/.claude/plugins/*.json)
+      # stores absolute host paths (e.g. installLocation). Making the
+      # container's $HOME match the host's — and mounting at the identical
+      # path below, instead of remapping to /root — keeps those paths valid
+      # inside the container so marketplace plugins actually load.
+      - HOME=${HOME}
     volumes:
       # ── Claude auth ──────────────────────────────────────────────────────────
-      # Mounted read-only. entrypoint.sh copies .claude.json to /root/.claude.json
+      # Mounted read-only. entrypoint.sh copies .claude.json to $HOME/.claude.json
       - ${HOME}/.claude.json:/mnt/claude-config/claude.json:ro
-      - ${HOME}/.claude:/root/.claude:ro
+      - ${HOME}/.claude:${HOME}/.claude:ro
+      # Some skills under ~/.claude/skills/ are symlinks pointing outside
+      # ~/.claude (e.g. ~/.claude/skills/hud -> ../../.agents/skills/hud).
+      # Mount the symlink target too, or those skills resolve to broken links.
+      - ${HOME}/.agents:${HOME}/.agents:ro
 
       # ── Gemini auth ──────────────────────────────────────────────────────────
       # Mounted read-only at /mnt/gemini-auth. entrypoint.sh copies to
-      # /root/.gemini (writable) so the CLI can write projects.json etc.
+      # $HOME/.gemini (writable) so the CLI can write projects.json etc.
       - ${HOME}/.gemini:/mnt/gemini-auth:ro
-      # Uncomment if using gcloud ADC instead of OAuth:
-      # - ${HOME}/.config/gcloud:/root/.config/gcloud:ro
+      # For gcloud ADC or any other host path the CLIs need (extra plugin
+      # config dirs, a project directory, etc.), don't add it here — copy
+      # docker-compose.override.yml.example to docker-compose.override.yml
+      # instead. Compose auto-merges it, and it's gitignored so machine-
+      # specific paths never end up in version control.
+
+    # ~/.claude is mounted read-only above to protect the host's real
+    # credentials/sessions/history, but Claude Code writes its own per-session
+    # runtime bookkeeping back into a few subdirectories of ~/.claude (e.g.
+    # session-env for the Bash tool). Overlay those specific paths with
+    # in-memory tmpfs mounts — writable inside the container, discarded on
+    # stop, and never touching the host filesystem. Docker layers the more
+    # specific tmpfs mount on top of the read-only bind mount above it.
+    tmpfs:
+      - ${HOME}/.claude/session-env
 
     # extra_hosts lets the container reach host services as "host.docker.internal"
     # on Linux (Docker Desktop on Mac/Win adds this automatically).
