@@ -268,12 +268,12 @@ Some CLI tools ask for confirmation when performing actions (e.g., tool use, fil
 
 | Mode | `/v1/claude/chat` behaviour | `/v1/gemini/chat`, `/v1/ollama/chat` behaviour |
 |---|---|---|
-| `"accept"` | Runs with `claude -p --dangerously-skip-permissions`, so permission-gated tool calls (Write, Bash outside the allowlist, WebFetch, etc.) actually execute | `cli_runner.py`'s pexpect loop answers `y` to any `[y/N]` / `Allow?` / `proceed?` prompt it sees on the pty |
+| `"accept"` | Runs with `claude -p --dangerously-skip-permissions`, so permission-gated tool calls (Write, Bash outside the allowlist, WebFetch, etc.) actually execute | `cli_runner.py`'s pexpect loop answers `y` to any `[y/N]` / `(yes/no)`-style prompt it sees on the pty |
 | `"reject"` | Default `claude -p` behaviour — permission-gated tool calls are denied and it replies in text explaining why | pexpect answers `n` to any such prompt |
 
 **Why claude is different**: in `-p` (print/non-interactive) mode, `claude` does not actually emit an interactive `[y/N]`-style prompt on the pty for permission-gated tool calls — it just denies them and explains why in its reply, regardless of what gets typed back on stdin. So `accept` is implemented by passing `--dangerously-skip-permissions` instead (see `app/routes/claude.py`). That flag refuses to run as root, which is why the container runs as a non-root user (`appuser`) — see [System Architecture](#system-architecture).
 
-`agy` and `ollama` still use the original pexpect y/n auto-answer approach from before this was discovered, on the assumption they emit real interactive prompts in print mode — this has **not** been separately verified the way `claude` was, so treat it as unconfirmed for those two.
+`agy` and `ollama` still use the original pexpect y/n auto-answer approach from before this was discovered, on the assumption they emit real interactive prompts in print mode — this has **not** been separately verified the way `claude` was, so treat it as unconfirmed for those two. Note that `cli_runner.py`'s prompt patterns are deliberately narrow (bracket/paren markers only, e.g. `[y/N]`, `(yes/no)`) — free-text patterns like "continue?" or "Are you sure" were tried and removed after a review found they fire on ordinary LLM-generated prose (asked to explain a confirmation dialog, the model's own answer would trigger a spurious auto-reply and corrupt the response).
 
 Use `"reject"` (the default) for untrusted or production workloads where you do not want the LLM to take side-effecting actions automatically.
 
@@ -312,6 +312,7 @@ python3 test/python/suite.py
 | TC08 | `interactive_mode: accept` actually allows the Write tool |
 | TC09 | `/v1/ollama/chat` returns well-formed JSON regardless of whether a real ollama server is reachable |
 | TC10 | A short `timeout` bounds the request's wall-clock time |
+| TC11 | A conversational answer containing prompt-like phrasing ("Are you sure...", "...continue?") isn't corrupted by the y/n auto-answer loop |
 
 TC07/TC08 verify the accept/reject divergence by asking claude to write a unique marker string to a file and read it straight back in the *same* request — no need to exec into the container to inspect the filesystem.
 

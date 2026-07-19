@@ -42,11 +42,19 @@ def chat(req: ChatRequest, _token: str = Depends(verify_token)) -> ChatResponse:
     # --dangerously-skip-permissions rather than relying on the pexpect y/n
     # auto-answer loop in cli_runner.py (which still handles any other
     # genuine interactive prompts the CLI might emit).
-    escaped = req.prompt.replace('"', '\\"')
-    skip_perms = "--dangerously-skip-permissions " if req.interactive_mode == InteractiveMode.ACCEPT else ""
-    cmd = f'claude -p {skip_perms}"{escaped}"'
+    #
+    # req.prompt is passed as its own argv element (args=[...]) rather than
+    # interpolated into a quoted string for shlex to reparse -- manual
+    # quote-escaping (replace('"', '\\"')) breaks whenever the prompt has an
+    # odd number of trailing/adjacent backslashes (e.g. a Windows path or a
+    # regex), since shlex then sees an escaped closing quote and raises
+    # "No closing quotation".
+    cli_args = ["-p"]
+    if req.interactive_mode == InteractiveMode.ACCEPT:
+        cli_args.append("--dangerously-skip-permissions")
+    cli_args.append(req.prompt)
 
-    output, code = run_cli(cmd, req.interactive_mode, timeout=timeout)
+    output, code = run_cli("claude", req.interactive_mode, timeout=timeout, args=cli_args)
 
     return ChatResponse(
         response=output,

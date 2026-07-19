@@ -8,6 +8,7 @@ Config: same as the other test/ scripts -- reads API_TOKEN/OLLAMA_DEFAULT_MODEL
         from ../../.env, overridable via API_TOKEN/BASE_URL env vars.
 """
 import os
+import re
 import sys
 import time
 
@@ -94,6 +95,22 @@ def main() -> int:
     status, _ = post_chat("/v1/claude/chat", {"prompt": "Write a 5000 word essay about the history of computing.", "timeout": 3})
     elapsed = time.monotonic() - start
     tc("TC10", f"claude respects a short timeout (responded in {elapsed:.1f}s)", status == 200 and elapsed <= 25, f"HTTP {status} elapsed={elapsed:.1f}s")
+
+    # TC11: a genuine conversational answer containing confirmation-dialog-like
+    # phrasing ("Are you sure...", "Do you want to... continue?") must NOT be
+    # corrupted by cli_runner.py's y/n auto-answer loop mistaking it for an
+    # actual interactive prompt. Regression guard for a real bug found in
+    # review: those free-text patterns used to fire on ordinary LLM prose and
+    # get a spurious "n" (or "y") appended to the response.
+    status, payload = post_chat(
+        "/v1/claude/chat",
+        {
+            "prompt": "Reply with exactly this sentence and nothing else: Are you sure you want to continue? This is a common confirmation phrase.",
+            "timeout": 20,
+        },
+    )
+    corrupted = bool(re.search(r"(^|\n)[ny]$", str(payload.get("response", ""))))
+    tc("TC11", "conversational text matching prompt-like phrasing isn't corrupted", status == 200 and payload.get("success") is True and not corrupted, f"HTTP {status} response={payload.get('response')}")
 
     print()
     print("===================================================")

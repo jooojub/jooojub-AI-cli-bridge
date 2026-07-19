@@ -18,19 +18,23 @@ class InteractiveMode(str, Enum):
 
 
 # Regex patterns that indicate the CLI is waiting for a y/n confirmation.
-# Add more patterns here as you encounter new prompts from specific CLIs.
+#
+# Deliberately narrow: bracket/paren-style confirmation markers only
+# ([y/N], (yes/no), ...), since real CLIs use those specific conventions and
+# nobody writes them in ordinary prose. Free-text patterns like "continue?",
+# "Are you sure", or "Do you want to" were tried here originally and had to
+# be removed -- an LLM's own conversational *answer* can easily contain that
+# exact wording (e.g. asked to explain what a confirmation dialog says), and
+# a false match mid-response makes this loop send a spurious y/n reply,
+# corrupting the captured output with extra echoed "y"/"n" text.
+# Add more patterns here only if they're this specific to a real CLI's
+# prompt syntax, not to natural-language phrasing.
 _PROMPT_PATTERNS: list[str] = [
     r"\[y/N\]",
     r"\[Y/n\]",
     r"\[yes/no\]",
     r"\(y/n\)",
     r"\(yes/no\)",
-    r"continue\?",
-    r"Allow\?",
-    r"proceed\?",
-    r"Do you want to",
-    r"Are you sure",
-    r"Press Enter to continue",
 ]
 
 _ANSI_ESCAPE = re.compile(

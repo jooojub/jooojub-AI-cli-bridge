@@ -34,10 +34,17 @@ def chat(req: ChatRequest, _token: str = Depends(verify_token)) -> ChatResponse:
 
     # Antigravity CLI (agy), the Gemini CLI successor: non-interactive
     # print mode via -p flag, same as the old `gemini -p` invocation.
-    escaped = req.prompt.replace('"', '\\"')
-    cmd = f'agy -p "{escaped}"'
-
-    output, code = run_cli(cmd, req.interactive_mode, timeout=timeout)
+    #
+    # req.prompt is passed as its own argv element (args=[...]) rather than
+    # interpolated into a quoted string for shlex to reparse -- see
+    # app/routes/claude.py for why manual quote-escaping breaks on prompts
+    # with trailing/adjacent backslashes.
+    output, code = run_cli(
+        "agy",
+        req.interactive_mode,
+        timeout=timeout,
+        args=["-p", req.prompt],
+    )
 
     return ChatResponse(
         response=output,

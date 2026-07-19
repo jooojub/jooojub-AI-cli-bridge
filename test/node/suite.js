@@ -125,6 +125,21 @@ async function main() {
     tc("TC10", `claude respects a short timeout (responded in ${elapsed.toFixed(1)}s)`, status === 200 && elapsed <= 25, `HTTP ${status} elapsed=${elapsed.toFixed(1)}s`);
   }
 
+  // TC11: a genuine conversational answer containing confirmation-dialog-like
+  // phrasing ("Are you sure...", "Do you want to... continue?") must NOT be
+  // corrupted by cli_runner.py's y/n auto-answer loop mistaking it for an
+  // actual interactive prompt. Regression guard for a real bug found in
+  // review: those free-text patterns used to fire on ordinary LLM prose and
+  // get a spurious "n" (or "y") appended to the response.
+  {
+    const { status, json } = await postChat("/v1/claude/chat", {
+      prompt: "Reply with exactly this sentence and nothing else: Are you sure you want to continue? This is a common confirmation phrase.",
+      timeout: 20,
+    });
+    const corrupted = /(^|\n)[ny]$/.test(String(json.response || ""));
+    tc("TC11", "conversational text matching prompt-like phrasing isn't corrupted", status === 200 && json.success === true && !corrupted, `HTTP ${status} response=${json.response}`);
+  }
+
   console.log();
   console.log("===================================================");
   console.log(`Passed: ${pass}  Failed: ${fail}  Total: ${pass + fail}`);

@@ -135,6 +135,25 @@ else
     _tc "TC10" "claude respects a short timeout" 1 "HTTP $HTTP_CODE elapsed=${ELAPSED}s"
 fi
 
+# TC11: a genuine conversational answer containing confirmation-dialog-like
+# phrasing ("Are you sure...", "Do you want to... continue?") must NOT be
+# corrupted by cli_runner.py's y/n auto-answer loop mistaking it for an
+# actual interactive prompt. Regression guard for a real bug found in
+# review: those free-text patterns used to fire on ordinary LLM prose and
+# get a spurious "n" (or "y") appended to the response.
+JSON_BODY="{\"prompt\": \"$(_json_escape "Reply with exactly this sentence and nothing else: Are you sure you want to continue? This is a common confirmation phrase.")\", \"timeout\": 20}"
+_post_chat "/v1/claude/chat" "$JSON_BODY"
+if command -v jq >/dev/null 2>&1; then
+    RESP_TEXT=$(echo "$BODY" | jq -r '.response')
+else
+    RESP_TEXT="$BODY"
+fi
+if [ "$HTTP_CODE" = "200" ] && _exit_on_success && ! printf '%s\n' "$RESP_TEXT" | grep -qE '^[ny]\r?$'; then
+    _tc "TC11" "conversational text matching prompt-like phrasing isn't corrupted" 0
+else
+    _tc "TC11" "conversational text matching prompt-like phrasing isn't corrupted" 1 "HTTP $HTTP_CODE response=$RESP_TEXT"
+fi
+
 echo
 echo "==================================================="
 echo "Passed: $PASS  Failed: $FAIL  Total: $((PASS + FAIL))"
